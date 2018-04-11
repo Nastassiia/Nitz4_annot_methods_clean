@@ -114,7 +114,7 @@ mpirun -n 16 /share/apps/Ray/Ray-2.3.1/Ray -k a -amos -show-memory-usage -p /sto
 
 [Generate training gene-set for augustus (no UTR training)](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/Phaeod.train.whole.Rmd)  
 
-[Generate training gene-set for augustus (UTR training)](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/utr.training.Rmd)
+
 [Check coding sequences for correct start codons](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/check_ATGs_correct.Rmd)
  - The main difference between gene sets for UTR and general parameters training is that for UTRs we do not need to filter for intron-less genes, so eventually we get more genes for training set.  
 
