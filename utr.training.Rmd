@@ -1,0 +1,158 @@
+---
+title: "UTR.train"
+author: "Nastya"
+date: "February 14, 2017"
+output: html_document
+---
+
+
+```{r}
+
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(GenomicFeatures))
+suppressPackageStartupMessages(library(IRanges))
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(Biostrings))
+```
+For more comments look at the **Phaeod.train.whole.Rmd** script
+
+```{r}
+source('/home/nata/R.functions/build.utr.annot.R')
+source('/home/nata/R.functions/flanked.mrna.overlaps.R')
+```
+
+whole.train.gene.set -acceptable start for Utr training.
+```{r}
+setwd('/home/nata/Desktop/Nitz4/Nitz4_1sem/augustus/Ph.tricorn.augustuss.training2/whole.gen.set.training/utr.training/')
+
+```
+
+Download gff filtered from alternative transcripts, generated when building general gene set for augustus.
+```{r}
+whole.train.gen.set<-import.gff('../whole.gen.train.set.1.gff') %>% as.data.frame()
+length(unique(whole.train.gen.set$transcript_id))
+10378
+NW.names<-grep('NW_', whole.train.gen.set$seqnames, invert = T)
+whole.train.gen.set.1<-whole.train.gen.set[NW.names,]
+length(unique(whole.train.gen.set.1$transcript_id))
+10003
+length(unique(whole.train.gen.set.1$protein_id))
+10003
+gen.nam2<-filter(whole.train.gen.set.1, type=='gene')
+length(unique(gen.nam2$Name))
+10006
+#some genes without transcript or proteins
+```
+
+Check for psudogenes
+```{r}
+alone.genes<-filter(whole.train.gen.set.1, type=='gene')
+alone.pseudo<-filter(alone.genes, gene_biotype=='pseudogene')
+rows<-alone.pseudo$Dbxref %>% unlist()    #remove everything with pseudo
+whole.train.gen.set.2<-whole.train.gen.set.1
+for (nam in rows){
+  whole.train.gen.set.2<-whole.train.gen.set.2[grep(nam, whole.train.gen.set.2$Dbxref, invert = T),]}
+
+length(unique(whole.train.gen.set.2$transcript_id))
+#10003 (with NA)
+length(unique(whole.train.gen.set.2$protein_id))
+#10003 (with NA)
+gen.nam3<-filter(whole.train.gen.set.2, type=='gene')
+length(unique(gen.nam3$Name))
+#10002 (no NA)
+```
+
+
+Find overlaps with 1000 flanks. 
+```{r}
+phaed.tab.mrna<-filter(whole.train.gen.set.2, type=='mRNA') 
+sumoverlap<-flanked.mrna.overlaps(phaed.tab.mrna, 1000)
+```
+
+
+Delete all overlapping transcripts (some of them are also spliced variants, which is not allowed)
+```{r}
+list.rm<-sumoverlap$subjectHits[grep('XM_', sumoverlap$subjectHits)] 
+phaed.tab.mrna3<-filter(phaed.tab.mrna, !(transcript_id %in% list.rm))
+length(unique(phaed.tab.mrna3$transcript_id))
+3374
+```
+
+
+Extract genes and CDS (and mrnas) by transcript ids.
+```{r}
+chosen.genes<-phaed.tab.mrna3$Dbxref
+chosen.gene.ids<-sub(".*, \"","",chosen.genes)
+chosen.gene.ids<-sub("\".*","", chosen.gene.ids)
+length(chosen.gene.ids)
+3374
+length(unique(chosen.gene.ids))
+3374
+write(chosen.gene.ids, 'utr.ids.1.txt')
+```
+
+Download training gene set with non-overlapping (+1000), not alternative spliced genes with at least one exon.
+```{r}
+# cat raw_data/GCF_000150955.2_ASM15095v2_genomic.gff | grep -f utr.ids1.txt > training.utr.set.gff
+training.genes<-import.gff('training.utr.set.gff') %>% as.data.frame()
+print(length(unique(training.genes$transcript_id)))
+3375
+print(length(unique(training.genes$protein_id)))
+3375
+gen.nam4<-(filter(training.genes, type=='gene'))
+length(unique(gen.nam4$Name))
+3374
+```
+
+```{r}
+phaed.cds.utr<-build.utr.annot(training.genes)
+
+phaed.cds.utr<-phaed.cds.utr[-1,]
+nrow(filter(phaed.cds.utr, type=='5\'-UTR'))
+3374
+nrow(filter(phaed.cds.utr, type=='3\'-UTR'))
+3374
+UTR5<-filter(phaed.cds.utr, type=='5\'-UTR') %>% filter(strand=='-') 
+mrna.star<-filter(training.genes, type=='mRNA') %>% filter(strand=='-')
+mean(UTR5$end==mrna.star$end)
+1
+UTR5<-filter(phaed.cds.utr, type=='5\'-UTR') %>% filter(strand=='+') 
+mrna.star<-filter(training.genes, type=='mRNA') %>% filter(strand=='+')
+mean(UTR5$start==mrna.star$start)
+1
+UTR3<-filter(phaed.cds.utr, type=='3\'-UTR') %>% filter(strand=='-')
+mrna.end<-filter(training.genes, type=='mRNA') %>% filter(strand=='-')
+mean(UTR3$start==mrna.end$start)
+1
+UTR3<-filter(phaed.cds.utr, type=='3\'-UTR') %>% filter(strand=='+')
+mrna.end<-filter(training.genes, type=='mRNA') %>% filter(strand=='+')
+mean(UTR3$end==mrna.end$end)
+1
+
+length(unique(phaed.cds.utr$ID))
+3374  
+```
+
+
+Generate list for UTR-training
+```{r}
+CDS.and.UTR<-phaed.cds.utr
+utr.training.table<-data.frame(matrix(data=NA, ncol=10), stringsAsFactors = F)
+colnames(utr.training.table)<-colnames(CDS.and.UTR)
+gene.ID<-unique(CDS.and.UTR$ID)
+
+for (gene in gene.ID){
+  utr.gene.tab<-filter(CDS.and.UTR, ID==gene)
+  k<-nrow(utr.gene.tab)                              
+  if (utr.gene.tab$width[k]>=40 & utr.gene.tab$width[1]>=40){ 
+    utr.training.table<-rbind(utr.training.table, utr.gene.tab)}
+}
+
+ 
+utr.training.table<-utr.training.table[-1, ]
+length(unique(utr.training.table$ID))
+531
+
+export.gff3(utr.training.table, 'just.utr.training.gff')
+```

@@ -1,0 +1,235 @@
+---
+title: "Phaeod_train_whol"
+author: "Nastya"
+date: "February 8, 2017"
+output: html_document
+---
+
+
+```{r}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(GenomicFeatures))
+suppressPackageStartupMessages(library(IRanges))
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(Biostrings))
+```
+
+```{r}
+setwd('/home/nata/Desktop/Nitz4/Nitz4_1sem/augustus/Ph.tricorn.augustuss.training2/whole.gen.set.training/')
+#download Phaeodactylum tricornutum annotation 
+phaed.gff.tab<-import.gff('../raw_data/GCF_000150955.2_ASM15095v2_genomic.gff')  %>% as.data.frame
+```
+
+```{r}
+#source custom functions
+source('/home/nata/R.functions/build.utr.annot.R')  
+source('/home/nata/R.functions/flanked.mrna.overlaps.R')
+```
+
+
+Training augustus on gene set no filtered from 'hypothetical' and 'predicted' proteins.
+```{r}
+#remove uncurated annotations
+phaed.NC.names<-grep('NW_', phaed.gff.tab$seqnames, invert = T)
+phaed.tab.NC<-phaed.gff.tab[phaed.NC.names,]
+length(unique(phaed.tab.NC$transcript_id))
+10034
+length(unique(phaed.tab.NC$protein_id))
+10034
+gen.nam<-filter(phaed.tab.NC, type=='gene')
+#compare N of genes to N of transcripts
+length(unique(gen.nam$Name))
+10022
+length(unique(gen.nam$Name))
+10022    
+#N of unique genes is smaller than N of unique trascripts, assume there are alternatively spliced transcripts 
+```
+
+Get rid of alternative splicing variants
+```{r}
+#info for alternative transcripts we are searching in Note column of gff file
+alt.rows<-grep('alternative', phaed.tab.NC$Note, ignore.case = T)
+alt.var<-phaed.tab.NC[alt.rows,]
+alt.var.genes<-alt.var$Dbxref
+#retrieve GeneIDs from Dbxref column
+alt.var.genes<-sub(".*, \"","",alt.var.genes)
+alt.var.genes<-sub("\".*","", alt.var.genes)
+alt.var.genes<-unique(alt.var.genes)
+print(length(alt.var.genes))
+16
+#we are cleaning from alternative transcripts by 'GeneIDs' as GeneID is present in every row for corresponding gene annotation, so it is fine for grep 
+write(alt.var.genes, 'alt.var.gen.ids.txt')
+# >cat ../raw_data/GCF_000150955.2_ASM15095v2_genomic.gff | grep -vf alt.var.gen.ids.txt > whole.gen.train.set.1.gff
+
+```
+
+Download gff filtered from altern transcripts
+```{r}
+whole.train.gen.set<-import.gff('whole.gen.train.set.1.gff') %>% as.data.frame()
+length(unique(whole.train.gen.set$transcript_id))
+10378
+NW.names<-grep('NW_', whole.train.gen.set$seqnames, invert = T)
+#generate train set with no alternative transcripts and uncurated accession numbers
+whole.train.gen.set.1<-whole.train.gen.set[NW.names,]
+length(unique(whole.train.gen.set.1$transcript_id))
+10003
+length(unique(whole.train.gen.set.1$protein_id))
+10003
+gen.nam2<-filter(whole.train.gen.set.1, type=='gene')
+length(unique(gen.nam2$Name))
+10006
+# N of genes is bigger then N of transcripts so some of them are without transcript or proteins
+```
+
+Check what above mentioned genes are.
+```{r}
+alone.genes<-filter(whole.train.gen.set.1, type=='gene')
+alone.pseudo<-filter(alone.genes, gene_biotype=='pseudogene')
+print(nrow(alone.pseudo))
+4
+rows<-which(whole.train.gen.set.1$gene_biotype=='pseudogene')
+#generate train set with no pseudogenes
+whole.train.gen.set.2<-whole.train.gen.set.1[-rows,]
+length(unique(whole.train.gen.set.2$transcript_id))
+#10003 (with NA)
+length(unique(whole.train.gen.set.2$protein_id))
+#10003 (with NA)
+gen.nam3<-filter(whole.train.gen.set.2, type=='gene')
+length(unique(gen.nam3$Name))
+#10002 (no NA)
+```
+
+
+Find no-intron genes
+```{r}
+#count N of exons for every transcript_ID
+# we substract 1, as by transcripts ID we also access(or count) mRNA with exons
+exon.number<-tapply(whole.train.gen.set.2$start, whole.train.gen.set.2$transcript_id, function(x) length(x)-1)
+print(length(exon.number))
+10002
+print(sum(exon.number<=1))
+5335
+# find mRNAs with 1 exon
+nointron.mrnas<-rownames(exon.number[exon.number<=1])
+phaed.tab.mrna<-filter(whole.train.gen.set.2, type=='mRNA') 
+phaed.tab.mrna<-phaed.tab.mrna[!is.na(phaed.tab.mrna$transcript_id),]
+#remove no-intron genes
+phaed.tab.mrna2<-filter(phaed.tab.mrna, !(transcript_id %in% nointron.mrnas)) 
+length(unique(phaed.tab.mrna2$transcript_id))
+4667
+```
+
+Find overlapps. 
+```{r}
+# For augustus we need to provide non-overlapping genes. As Augustus expects regions outside of training genes, we add 1000bp flanks and check for non-overlapping genes here. 
+sumoverlap<-flanked.mrna.overlaps(phaed.tab.mrna2, 1000)
+```
+
+Delete all overlapping transcripts (some of them can be spliced variants, which is not allowed)
+```{r}
+#We remove all overlapping genes, not just one member of "overlapping pair". I didn't want to deal with "tri-overlapping" genes or manually check which gene model from overlapping pair is better to keep.  
+list.rm<-sumoverlap$subjectHits[grep('XM_', sumoverlap$subjectHits)] 
+# Here we have mRNAs with no alternatively-spliced or pseudo-genes, no intron-less and no overlapping genes accounting 1000bp flanking regions around them.
+phaed.tab.mrna3<-filter(phaed.tab.mrna2, !(transcript_id %in% list.rm))
+length(unique(phaed.tab.mrna3$transcript_id))
+2928
+```
+
+Extract genes and CDS (and mrnas) by transcript ids.
+```{r}
+# Retrieve GeneIDs of above generated mRNA set
+chosen.genes<-phaed.tab.mrna3$Dbxref
+chosen.gene.ids<-sub(".*, \"","",chosen.genes)
+chosen.gene.ids<-sub("\".*","", chosen.gene.ids)
+length(chosen.gene.ids)
+2928
+length(unique(chosen.gene.ids))
+2928
+write(chosen.gene.ids, 'gene.ids.1.txt')
+```
+
+Retrieve training gene set with non-overlapping (+1000) and no alternatively spliced genes with at least one intron.
+```{r}
+# cat raw_data/GCF_000150955.2_ASM15095v2_genomic.gff | grep -f gene.ids1.txt > training.gen.set.gff
+training.genes<-import.gff('training.gen.set.gff') %>% as.data.frame()
+print(length(unique(training.genes$transcript_id)))
+2929
+print(length(unique(training.genes$protein_id)))
+2929
+gen.nam4<-(filter(training.genes, type=='gene'))
+length(unique(gen.nam4$Name))
+2928
+```
+
+Add UTR annotations for the genes or set it up to 0 if mRNA do not exceed exon regions 
+```{r}
+# UTR annotation is added by custom script
+phaed.cds.utr<-build.utr.annot(training.genes)
+# Check integrity of generated table with UTR relatively to input table
+phaed.cds.utr<-phaed.cds.utr[-1,]
+nrow(filter(phaed.cds.utr, type=='5\'-UTR'))
+2928
+nrow(filter(phaed.cds.utr, type=='3\'-UTR'))
+2928
+# On minus strand 5'UTR ends should be the same as mRNA ends 
+UTR5<-filter(phaed.cds.utr, type=='5\'-UTR') %>% filter(strand=='-') 
+mrna.star<-filter(training.genes, type=='mRNA') %>% filter(strand=='-')
+mean(UTR5$end==mrna.star$end)
+1
+# On plus strand 5'UTR starts should be the same as mRNA starts
+UTR5<-filter(phaed.cds.utr, type=='5\'-UTR') %>% filter(strand=='+') 
+mrna.star<-filter(training.genes, type=='mRNA') %>% filter(strand=='+')
+mean(UTR5$start==mrna.star$start)
+1
+# On minus strand 3'UTR starts should be the same as mRNA starts
+UTR3<-filter(phaed.cds.utr, type=='3\'-UTR') %>% filter(strand=='-')
+mrna.end<-filter(training.genes, type=='mRNA') %>% filter(strand=='-')
+mean(UTR3$start==mrna.end$start)
+1
+# On plus strand 3'UTR ends should be the same as mRNA ends 
+UTR3<-filter(phaed.cds.utr, type=='3\'-UTR') %>% filter(strand=='+')
+mrna.end<-filter(training.genes, type=='mRNA') %>% filter(strand=='+')
+mean(UTR3$end==mrna.end$end)
+1
+
+length(unique(phaed.cds.utr$ID))
+2928  
+```
+
+
+Generate gene set for Augustus training. 
+We complied with Augustus requirements for the gene-prediction(no UTRs prediction) training set. For UTR-parameters training we are going to choose separate set of genes with no strict requirements for intron presence, but with longer UTRs.
+Still for gene-prediction training (we don't train UTR-parameters here), I've found reasonable to provide genes with UTRs. Sensitivity/specifity of gene prediction increased with training on genes with UTRs. I do not increase requirement for UTR length, as we will have less gene for training. It resulted in decresed values of sensitivity/specifity of gene-prediction.
+```{r}
+CDS.and.UTR<-phaed.cds.utr
+utr.training.table<-data.frame(matrix(data=NA, ncol=10), stringsAsFactors = F)
+colnames(utr.training.table)<-colnames(CDS.and.UTR)
+gene.ID<-unique(CDS.and.UTR$ID)
+
+for (gene in gene.ID){
+  utr.gene.tab<-filter(CDS.and.UTR, ID==gene)
+  k<-nrow(utr.gene.tab)                              
+  if (utr.gene.tab$width[k]>=25 & utr.gene.tab$width[1]>=25){ 
+    utr.training.table<-rbind(utr.training.table, utr.gene.tab)}
+}
+
+# the best >=25 
+utr.training.table<-utr.training.table[-1, ]
+length(unique(utr.training.table$ID))
+724
+# This is our FINAL gene set appropriate for Augustus training. (just genes, no UTR-prediction parameters training)
+export.gff3(utr.training.table, 'train_/exec.utr.cds.train.1.gff')
+```
+
+
+
+
+
+
+
+
+
+
+
+

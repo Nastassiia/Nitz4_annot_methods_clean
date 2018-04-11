@@ -1,0 +1,133 @@
+---
+title: "check_ATGs_correct"
+author: "Nastya"
+date: "April 18, 2017"
+output: html_document
+---
+
+#### Export mRNA sequences for converting to fasta.
+
+Here I wanted to check if mRNAs start with ATG as correct start-codon annotation is principal according to Augustus manual 
+
+```{r}
+# Retrieve complete annotation for mRNAs from training gene-set.   
+mRNA.to.fasta<-filter(training.genes, type=='mRNA')
+mrna.ids<-mRNA.to.fasta$Dbxref
+chosen.mrna.ids<-sub(".*, \"","",mrna.ids)
+chosen.mrna.ids<-sub("\".*","", chosen.mrna.ids)
+mRNA.to.fasta$ID<-chosen.mrna.ids
+mRNA.to.fasta<-filter(mRNA.to.fasta, ID %in% utr.training.table$ID)
+nrow(mRNA.to.fasta)
+724
+# Export gff to retrive mRNA fasta sequences
+export.gff3(mRNA.to.fasta, "mrna.to.fasta.gff")
+# >bedtools getfasta -fo mrna.to.fasta.fasta -fi ../raw_data/Ph.tricorn.short.names_genomic.fna -bed mrna.to.fasta.gff 
+# check out that bedtools are zero-based!!
+```
+
+Check ATGs
+```{r}
+# Read fasta seq-s
+gen.fasta<-readDNAStringSet('mrna.to.fasta.fasta', "fasta")
+
+# Generate table with fasta sequences 
+seq_name<-names(gen.fasta)
+gen.seq<-vector()
+for (i in 1:length(gen.fasta)){
+  gen.seq[i]<-toString(gen.fasta[[i]])
+}
+fasta.frame<-data.frame(seq_name, gen.seq, stringsAsFactors = F)
+nrow(fasta.frame)
+724
+```
+
+
+Add gb_names to the entries of 5 UTR
+```{r}
+# We retrieve 5'UTR annotation table and add to each entry new ID: "NC_seqname_start:end". Where start and end are mRNA boundaries of corresponding gene and seqname- the name of the chromosome. We need this as in the fasta.frame table sequences are named exaclty the same way and we want to analyze 5'UTR for the correct sequnce. Also we adjust boundaries to 0-bazed ones for fasta.frame.  
+utr_35_tab<-filter(utr.training.table, type %in% c('3\'-UTR', '5\'-UTR'))
+utr5tab<-filter(utr.training.table, type=='5\'-UTR')
+utr5tab2<-cbind(utr5tab, NA)
+colnames(utr5tab2)[11]<-'gene.name'
+prot.id<-utr5tab2$ID
+k<-1
+for (prot in prot.id){
+  one.prot<-filter(utr_35_tab, ID==prot)
+  if (nrow(one.prot)==2){
+      if (one.prot$strand[1]=='+'){
+        start5<-(one.prot$start[1]-1) #adjust to zero based value
+        end3<-(one.prot$end[2])
+        scaff.name<-one.prot$seqnames[1]
+        gb.name<-paste0(scaff.name, ":", start5, "-", end3)
+        utr5tab2$gene.name[k]<-gb.name
+        k<-(k+1)}
+      if (one.prot$strand[1]=='-'){
+        start5<-(one.prot$start[2]-1) #adjust to zero based value
+        end3<-(one.prot$end[1])
+        scaff.name<-one.prot$seqnames[1]
+        gb.name<-paste0(scaff.name, ":", start5, "-", end3)
+        utr5tab2$gene.name[k]<-gb.name
+        k<-(k+1)}
+    }
+}
+```
+
+
+Add fasta seq-s to the table
+```{r}
+utr5tab2<-cbind(utr5tab2,NA)
+colnames(utr5tab2)[12]<-'fasta_seq'
+for (i in 1:nrow(utr5tab2)){
+  if (fasta.frame$seq_name[i]==utr5tab2$gene.name[i]){
+    utr5tab2$fasta_seq[i]<-fasta.frame$gen.seq[i]}
+  }
+```
+
+
+check ATG at + string 
+```{r}
+utr5tab_plus<-filter(utr5tab2, strand=='+')
+ID_atg<-vector()
+for (i in 1:nrow(utr5tab_plus)){
+  sequ<-(utr5tab_plus$fasta_seq[i]) %>% strsplit("") %>% unlist
+  startA<-utr5tab_plus$width[i]+1
+  endG<-utr5tab_plus$width[i]+3
+  if (sum((sequ[startA:endG]==c("A","T","G")))==3) {
+    ID_atg<-c(ID_atg, utr5tab_plus$ID[i])}
+  }
+  
+length(ID_atg)  
+379
+nrow(utr5tab_plus)
+379
+#so all the coding seq-s on the plus strand start with ATG
+```
+
+
+Check ATG for minus strand
+```{r}
+utr5tab_minus<-filter(utr5tab2, strand=='-')    
+ID_atg_minus<-vector()
+#Reverse complement - strand
+for (i in 1:nrow(utr5tab_minus)){
+  a<-utr5tab_minus$fasta_seq[i] %>% DNAString()
+  b<-reverseComplement(a) %>% as.character()
+  utr5tab_minus$fasta_seq[i]<-b
+  }
+  
+
+for (i in 1:nrow(utr5tab_minus)){
+  sequ<-(utr5tab_minus$fasta_seq[i]) %>% strsplit("") %>% unlist
+  startA<-utr5tab_minus$width[i]+1
+  endG<-utr5tab_minus$width[i]+3
+  if (sum((sequ[startA:endG]==c("A","T","G")))==3) {
+    ID_atg_minus<-c(ID_atg_minus, utr5tab_minus$ID[i])}
+  }
+length(ID_atg_minus)
+345
+nrow(utr5tab_minus)
+345
+#seems like all of the genes have ATG as start codon
+345+379=724
+```  
+
