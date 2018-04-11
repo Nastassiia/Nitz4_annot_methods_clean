@@ -77,7 +77,7 @@ mpirun -n 16 /share/apps/Ray/Ray-2.3.1/Ray -show-memory-usage -k 45 -amos -p /st
 Blast plastid free assembly to diatom mitochondrial genes from custom databases
 
 
-[R code to find mitochondrial scaffolds ](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/gene.fold.names.md)
+[R code to find mitochondrial scaffolds ](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/gene.fold.names.md)
 
 
 
@@ -108,20 +108,21 @@ mpirun -n 16 /share/apps/Ray/Ray-2.3.1/Ray -k a -amos -show-memory-usage -p /sto
 
 #### Identification of non-target genomes with blobplots
 
-[Blobplots for whole, plastid-free and organelle-free reads scaffolds](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/make_blobloplots.md)
+[Blobplots for whole, plastid-free and organelle-free reads scaffolds](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/make_blobloplots.md)
 
 #### Generate Phaeodactylum tricornutum chosen gene-set for retraining augustus gene-prediction parameters
 
-[Generate training gene-set for augustus (no UTR training)](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/Phaeod.train.whole.Rmd)  
-[Generate training gene-set for augustus (no UTR training)] (https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/utr.training.Rmd)
-[Check coding sequences for correct start codons](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/check_ATGs_correct.Rmd)
+[Generate training gene-set for augustus (no UTR training)](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/Phaeod.train.whole.Rmd)  
+
+[Generate training gene-set for augustus (UTR training)](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/utr.training.Rmd)
+[Check coding sequences for correct start codons](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/check_ATGs_correct.Rmd)
  - The main difference between gene sets for UTR and general parameters training is that for UTRs we do not need to filter for intron-less genes, so eventually we get more genes for training set.  
 
-[Generate training gene-set for augustus UTR-parameters training](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/utr.training.Rmd)
+[Generate training gene-set for augustus UTR-parameters training](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/utr.training.Rmd)
   - Custome scripts used
 
-[Buid.utr.annot.R](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/build.utr.annot.R)  
-[flanked.mrna.overlaps.R](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/flanked.mrna.overlaps.R)
+[Buid.utr.annot.R](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/build.utr.annot.R)  
+[flanked.mrna.overlaps.R](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/flanked.mrna.overlaps.R)
 
 #### Train augustus
 
