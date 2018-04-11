@@ -42,7 +42,7 @@ blobtools blobplot -i nitz4.bitscor.bloplot.blobDB.json 1>log.bl.blobp.txt
 ```
 
 
-[Blobplot_original_scaffolds](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/plots/nitz4.original.scaffold.png)
+[Blobplot_original_scaffolds](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/plots/nitz4.original.scaffold.png)
 
 
 ## Blobplots for plastid-reads free genome
@@ -84,7 +84,7 @@ blobtools blobplot -i nitz4.plastfree.blobplot.blobDB.json  1> blobplot.txt
 
 ```
 
-[Blobplot_plastid-free_scaffolds](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/plots/nitz4.plastfree.scaffold.png)
+[Blobplot_plastid-free_scaffolds](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/plots/nitz4.plastfree.scaffold.png)
 
 ## Blobplots for organellar-reads free genome
 
@@ -127,4 +127,4 @@ blobtools view -i nitz4.orgfree.blobplot.blobDB.json 1> bl.view.txt
 blobtools blobplot -i nitz4.orgfree.blobplot.blobDB.json 1> blobplot.txt
 
 ```
-[Blobplot_organelle-free_scaffolds](https://github.com/Nastassiia/Nitz4_annot_paper/blob/master/plots/nitz4.orgfree.scaffolds.png)
+[Blobplot_organelle-free_scaffolds](https://github.com/Nastassiia/Nitz4_annot_methods_clean/blob/master/plots/nitz4.orgfree.scaffolds.png)
